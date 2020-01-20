@@ -2,7 +2,6 @@
 # Library loadings
 library(tidyverse)
 library(MLmetrics)
-library(caret)
 library(kknn)
 library(randomForest)
 library(C50)
@@ -197,10 +196,6 @@ ctrl2 <- trainControl(method = "repeatedcv",
 
 
 
-
-
-
-
 # Modelling ----
 
 # LONGITUDE USING WEIGHTED K NEAREST NEIGHOUR 
@@ -208,7 +203,7 @@ ctrl2 <- trainControl(method = "repeatedcv",
 Train <- as.data.frame(LOTrain[,])
 Test <- as.data.frame(LOTest[,])
 
-?train.kknn
+
 
 kknn_LO <- train.kknn(LO~.,
                         data = Train,
@@ -247,7 +242,6 @@ head(actuals_preds)
 #
 scatter.smooth(actuals_preds)
 
-hist(actuals_preds)
 
 #  actuals and predicted values have similar directional movement ie Higher corr accuracy
 correlation_accuracy <- cor(actuals_preds)  # 100% 
@@ -268,6 +262,8 @@ barplot(error_rate)
 # Min-Max Accuracy Calculation
 min_max_accuracy <- mean(min(actuals_preds$actuals,actuals_preds$predicted )/
                            max(actuals_preds$actuals,actuals_preds$predicted ))  # 100% ie Higher the better
+
+plot(min_max_accuracy)
 
 # MAPE Calculation
 mape <- mean(abs((actuals_preds$predicted - actuals_preds$actuals))/actuals_preds$actuals)  
@@ -338,12 +334,12 @@ barplot(error_rate_LO1/100)
 
 # Longitude - Random Forest ----
 
-train <- as.data.frame(Train[,])
-test <- as.data.frame(Test[,])
+Train <- as.data.frame(Train[,])
+Test <- as.data.frame(Test[,])
 
 
 rf_LO <- randomForest(LO~.,
-                        data = train,
+                        data = Train,
                         trControl = ctrl,
                         importance = TRUE,
                         ntree= 500,
@@ -354,11 +350,11 @@ plot(rf_LO)
 #
 summary(rf_LO)
 
-#prediction with the modelo####
-rf_LO_predic <- predict(rf_LO, test)
+#prediction with the model####
+rf_LO_predic <- predict(rf_LO, Test)
 
 ## Calculating prediction Corr accuracy and error rates
-actuals_preds_RF <- data.frame(cbind(actuals=test$LO, predicted=rf_LO_predic)) 
+actuals_preds_RF <- data.frame(cbind(actuals=Test$LO, predicted=rf_LO_predic)) 
 
 head(actuals_preds_RF)
 
@@ -424,10 +420,40 @@ print(error_rate_RFLO1)
 barplot(error_rate_RFLO1/100) # mse > rmse > mae > mape
 
 
+LO - SVM
+
+tsvm_LO <- system.time(
+  svm_LO <- svm(LO~.,
+                data = Train,
+                trControl = ctrl,
+                preProc = c("center", "scale")
+  )
+)
+
+print(svm_LO)
+
+
+#prediction with the model 
+svm_LO_predic <- predict(svm_LO, Test, level = .95)
+
+
+# 
+## Calculating error rates
+SVM_LO_actual <- data.frame(cbind(actuals=Test$LO, predicted=svm_LO_predic)) 
+
+attributes(SVM_LO_actual)
+
+## Error Rates
+error_rate_SVM_LO <- DMwR::regr.eval(SVM_LO_actual$actuals, SVM_LO_actual$predicted)
+# mae          mse         rmse         mape 
+# 8.720451e+00 1.483211e+02 1.217871e+01 1.170163e-03 
+
+barplot(error_rate_SVM_LO)
 
 
 
-  
+
+
 # LATITUDE - Nearest neighbour ---- 
 train <- as.data.frame(LATrain[,])
 test <- as.data.frame(LATest[,])
@@ -435,21 +461,30 @@ test <- as.data.frame(LATest[,])
 
 set.seed(601)
 
-tkkn_LA <- system.time(
-  kknn_LA <- train.kknn(LA~.,
+kknn_LA <- train.kknn(LA~.,
                         data = train,
                         trControl = ctrl,
                         method = "kknn",
                         method = "optimal",
                         kmax = 5)
-)
+
 
 # prediction 
-kknn_LA_predic <- predict(kknn_LA, LATest)
+kknn_LA_predic <- predict(kknn_LA, test)
 
 #
 
 plot(kknn_LA)
+
+
+## Calculating prediction Corr accuracy and error rates
+actuals_preds_kknn_LA <- data.frame(cbind(actuals=test$LA, predicted=kknn_LA_predic)) 
+
+## Error Rates
+error_rate_LA <- DMwR::regr.eval(actuals_preds_kknn_LA$actuals, actuals_preds_kknn_LA$predicted) 
+#  mae          mse         rmse         mape 
+# 3.096398e+00 5.957898e+01 7.718742e+00 6.364825e-07
+
 
 
 # Latitude ## Validation Dataset
@@ -492,8 +527,16 @@ trf_LA <- system.time(
 # prediction
 rf_LA_predic <- predict(rf_LA, LATest, level = .95)
 
-#
-rf_LA
+# 
+## Calculating error rates
+actuals_preds_RF_LA <- data.frame(cbind(actuals=LATest$LA, predicted=rf_LA_predic)) 
+
+## Error Rates
+error_rate_RF_LA <- DMwR::regr.eval(actuals_preds_RF_LA$actuals, actuals_preds_RF_LA$predicted)
+#          mae          mse         rmse         mape 
+# 4.192873e+00 5.430533e+01 7.369215e+00 8.618705e-07 
+
+
 
 # Latitude - SVM
 set.seed(601)
@@ -505,14 +548,24 @@ tsvm_LA <- system.time(
   )
 )
 
+print(svm_LA)
 
 #prediction with the model 
-svm_LA_predic <- predict(svm_LA, LATest, level = .95)
+svm_LA_predic <- predict(svm_LA, test, level = .95)
 
 # 
-svm_LA
+## Calculating error rates
+actuals_preds_SVM_LA <- data.frame(cbind(actuals=test$LA, predicted=svm_LA_predic)) 
 
 
+
+## Error Rates
+error_rate_SVM_LA <- DMwR::regr.eval(actuals_preds_SVM_LA$actuals, actuals_preds_SVM_LA$predicted)
+#        mae          mse         rmse         mape 
+# 5.924592e+00 7.277477e+01 8.530813e+00 1.217833e-06  
+
+
+barplot(error_rate_SVM_LA)
 
 
 
@@ -567,7 +620,7 @@ tab_Rf <- table(testFL$FL, P2)
 Err_TestFL <- 1-sum(diag(tab_Rf))/sum(tab_Rf) # 0.0307
 
 # OOB Error
-Err_TrainFL + Err_TestFL # 3.3%
+Err_TrainFL + Err_TestFL # 3.3
  
 
 # Error rate of RF
@@ -639,15 +692,18 @@ sum(diag(tab_c50))/sum(tab_c50) # 0.8976246
 trainFL <- as.data.frame(trainFL)
 testFL<- as.data.frame(testFL)
 
-mymodel <- svm(FL~., trainFL, kernel= 'radial', method = 'ctrlk')
+mymodel <- svm(FL~., trainFL, kernel= 'radial', method = 'ctrl1')
+
 
 print(mymodel)
 
 summary(mymodel)
 
+plot(mymodel,trainFL)
+
 
 #Confusion Matrix and misclassification Error
-pred <- predict(mymodel, testFL)
+pred <- predict(mymodel, testFL, level = .95)
 
 plot(pred) # D > B > A > C > E # Classes with highest wifi location
 
@@ -670,7 +726,6 @@ sum(diag(tab))/sum(tab) #0.9685514
 BUTrain<- as.data.frame(BUTrain[,])
 BUTest <- as.data.frame(BUTest[,])
 
-str(BUTrain)
 
 #
 RF_BU <- randomForest(BU~.,  BUTrain, metric = "Accuracy", importance = T,  trControl = ctrl2)
@@ -749,7 +804,7 @@ confusionMatrix(BUTest$BU, pred_SVM_BU) # Accuracy : 0.9975 and Kappa : 0.9961
 # Misclassification Error
 tab_Error_BU <- table(predicted= pred_SVM_BU, Actual= BUTest$BU)
 
-1-sum(diag(tab_Error_BU))/sum(tab_Error_BU) # 0.0025
+(1-sum(diag(tab_Error_BU))/sum(tab_Error_BU)) # 0.0025
 
 
 # Accuracy
@@ -784,4 +839,30 @@ tab_Error_BU1 <- table(predicted= pred_SVM_BU1, Actual= BU1Test$BU)
 sum(diag(tab_Error_BU1))/sum(tab_Error_BU1) #0.9969
 
 
+
+
+# Building -- C50--
+
+c50_BU <- C5.0(BU~.,data = BUTrain,
+               trControl = c(ctrl1, noGlobalPruning = TRUE))
+
+summary(c50_BU)
+
+
+#prediction - Test dataset 
+c50_BU_predic <- predict(c50_BU, BUTest, level = .95)
+
+barchart(c50_BU_predic) # # Building 2 has the higheest freq in the building
+
+
+confusionMatrix(BUTest$BU, c50_BU_predic) # Accuracy : 0.996 and 0.994
+
+
+# Misclassification Error
+tab_c50_BU <- table(Actual= BUTest$BU, predicted = c50_BU_predic)
+
+1-sum(diag(tab_c50_BU))/sum(tab_c50_BU) # 0.003846797
+
+# Accuracy
+sum(diag(tab_c50_BU))/sum(tab_c50_BU) # 0.996
 
